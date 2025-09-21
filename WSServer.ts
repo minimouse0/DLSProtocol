@@ -3,7 +3,7 @@ import { config, port } from "./config";
 import {FMPLogger as Logger} from "./Logger.js"
 
 import * as ws from "ws";
-import { getThisMachineHardwareStatus } from "./DLSPerformanceDetector";
+import { getThisMachineHardwareStatus } from "./DLSPerformanceDetector/DLSPerformanceDetector.js";
 import { SimpleHTTPReq } from "./http";
 export function sendClientError(client:ws,error:string,msg:string,otherOptions:any={}){
     client.send(JSON.stringify({
