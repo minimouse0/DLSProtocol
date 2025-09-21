@@ -1,0 +1,6 @@
+{
+    "dependencies": {
+        "systeminformation": "^5.27.10"
+    },
+    "main": "index.js"
+}

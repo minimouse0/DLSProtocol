@@ -1,0 +1,6 @@
+[
+{
+  "directory": "C:\\Users\\Administrator\\Documents\\code\\DLSPerformanceDetector",
+  "arguments": ["C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.42.34433\\bin\\HostX64\\x64\\cl.exe", "/c", "/nologo", "/O2", "/Ibuild\\.gens\\DLSPerformanceDetector\\windows\\x64\\release\\platform\\windows\\idl", "/EHsc", "/IC:\\Users\\Administrator\\AppData\\Local\\.xmake\\packages\\n\\nlohmann_json\\v3.11.3\\826582eb66794908a16a49dbdd33bec4\\include", "/IC:\\Users\\Administrator\\AppData\\Local\\.xmake\\packages\\c\\cpp-httplib\\v0.20.0\\56bd812c46b14972b118aa073c3dbcb6\\include", "/DNDEBUG", "/Fobuild\\.objs\\DLSPerformanceDetector\\windows\\x64\\release\\src\\main.cpp.obj", "src\\main.cpp"],
+  "file": "src\\main.cpp"
+}]
