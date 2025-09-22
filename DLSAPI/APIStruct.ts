@@ -61,6 +61,7 @@ export interface FetchHardwareStatusResultPack{
 }
 type clientErrorType="token_incorrect"
     |"pattern_not_provided"
+    |"server_not_exist"
 export interface APIError{
     
     type:"error",

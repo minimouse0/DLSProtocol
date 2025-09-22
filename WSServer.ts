@@ -52,6 +52,15 @@ wsServer.on("connection",client=>{
                 })
                 return;
             }
+            if(config.get("servers")[serverName]==undefined){
+                sendClientError(client,{
+                    type:"error",
+                    error:"server_not_exist",
+                    msg:serverName+"不存在！",
+                    serverName
+                })
+                return;
+            }
             switch(type){
                 //鉴权用API
                 case "auth":
@@ -142,7 +151,8 @@ wsServer.on("connection",client=>{
             }
         }
         catch(e){
-            Logger.info("无法解析客户端 "+"[暂不支持显示客户端id]"+" 发来的数据：\n"+e)
+            Logger.error("无法解析客户端 "+"[暂不支持显示客户端id]"+" 发来的数据：\n"+e)
+            Logger.error("数据内容："+rawData.toString())
         }
     })
     client.on('close',ws=>{
