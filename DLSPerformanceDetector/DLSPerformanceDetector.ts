@@ -1,6 +1,7 @@
 
 import * as os from "os";
 import * as si from "systeminformation"
+import {HardwareStatusResult} from "../DLSAPI/APIStruct.js"
 //由于操作系统运行过程中CPU基本信息不能改变，所以在启动时获取
 
 const cpu_count=os.cpus().length
@@ -24,7 +25,7 @@ export async function getThisMachineHardwareStatus() {
     if(Date.now()-diskLastChecked>9900)refreshDisk()
 
 
-    const result = {
+    const result:HardwareStatusResult = {
         code: 200,
         cpu_count,
         cpu_freq: parseFloat((cpuSpeed.avg).toFixed(1)), // GHz

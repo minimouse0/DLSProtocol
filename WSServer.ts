@@ -5,14 +5,8 @@ import {FMPLogger as Logger} from "./Logger.js"
 import * as ws from "ws";
 import { getThisMachineHardwareStatus } from "./DLSPerformanceDetector/DLSPerformanceDetector.js";
 import { SimpleHTTPReq } from "./http";
-export function sendClientError(client:ws,error:string,msg:string,otherOptions:any={}){
-    client.send(JSON.stringify({
-        type:"error",
-        error,
-        msg,
-        ...otherOptions
-    }))
-}
+import { HardwareStatusResult, hearbeat } from "./DLSAPI/APIStruct";
+import { sendAuthedBack, sendClientError, sendFetchAllServerLogsResultPack, sendFetchHardwareStatusResultPack, sendFetchProcessStatusResultPack, sendHeartbeat, sendRequestFailed } from "./DLSAPI/ServerHelper";
 //先做ws,ws好做
 export const wsServer=new ws.Server({port});
 export const authorizedClients = new Map<string,Set<ws>>();
@@ -32,11 +26,16 @@ export function checkClientAuthed(server:string,client:ws){
     return Boolean(authorizedClients.get(server)?.has(client));
 }
 export function rejectAsNotAuthed(serverName:string,client:ws){
-    sendClientError(client,"token_incorrect","服务器"+serverName+"尚未验证！",{serverName})
+    sendClientError(client,{
+        type:"error",
+        error:"token_incorrect",
+        serverName,
+        msg:"服务器"+serverName+"尚未验证！"
+    })
 }
 //发心跳包防止长连接断开
 //心跳包不需要鉴权
-setInterval(()=>wsServer.clients.forEach(client=>client.send("{\"type\":\"hb\"}")),9000)
+setInterval(()=>wsServer.clients.forEach(client=>sendHeartbeat(client)),9000)
 wsServer.on("connection",client=>{
     client.on("message",rawData=>{
         try{
@@ -44,17 +43,23 @@ wsServer.on("connection",client=>{
             const {type,data,serverName,requestUID}=parsedData
             //先检查是否有serverName，如果没有则直接拒绝
             if(serverName==undefined){
-                sendClientError(client,"pattern_not_provided","发送的数据中缺少serverName字段",{pattern:"serverName"})
+                sendClientError(client,{
+                    type:"error",
+                    error:"pattern_not_provided",
+                    serverName:"not_provided",
+                    msg:"发送的数据中缺少serverName字段",
+                    attachments:{pattern:"serverName"}
+                })
                 return;
             }
             switch(type){
                 //鉴权用API
                 case "auth":
                     if(authClient(client,serverName,parsedData.token)){
-                        client.send(JSON.stringify({
+                        sendAuthedBack(client,{
                             type:"authed",
                             requestUID
-                        }))
+                        })
                     }
                     else{
                         rejectAsNotAuthed(serverName,client)
@@ -71,24 +76,24 @@ wsServer.on("connection",client=>{
                     break;
                 //需要鉴权
                 case "fetch_all_server_logs":
-                    if(checkClientAuthed(serverName,client))client.send(JSON.stringify({
+                    if(checkClientAuthed(serverName,client))sendFetchAllServerLogsResultPack(client,{
                         type:"fetch_all_server_logs_result",
                         data:serverSessions.get(serverName).session.logs,
                         requestUID
-                    }))
+                    })
                     else rejectAsNotAuthed(serverName,client)
                     break;
                 //公开
                 case "fetch_process_status":
-                    client.send(JSON.stringify({
+                    sendFetchProcessStatusResultPack(client,{
                         type:"fetch_process_status_result",
                         data:serverSessions.get(serverName).lastStatus,
                         requestUID
-                    }))
+                    })
                     break;
                 //公开
                 case "fetch_hardware_status":
-                    new Promise<any>(resolve=>{
+                    new Promise<HardwareStatusResult>((resolve,reject)=>{
                         switch(config.get("servers")[serverName].performance?.type){
                             case "local":{
                                 getThisMachineHardwareStatus().then(result=>resolve(result))
@@ -105,7 +110,7 @@ wsServer.on("connection",client=>{
                                 SimpleHTTPReq.GET(config.get("servers")[serverName].performance?.address+"/server_status")
                                     .then(result=>resolve(JSON.parse(result.responseData)))
                                     .catch(e=>{
-                                        resolve({
+                                        reject({
                                             code:503,
                                             msg:"连接DLSPerformanceDetector失败！"
                                         })
@@ -116,11 +121,19 @@ wsServer.on("connection",client=>{
                             default:throw new Error("不支持的硬件信息来源："+config.get("servers")[serverName].performance?.type)
                         }                        
                     }).then(result=>{
-                        client.send(JSON.stringify({
+                        sendFetchHardwareStatusResultPack(client,{
                             type:"fetch_hardware_status_result",
                             data:result,
                             requestUID
-                        }))
+                        })
+                    }).catch(reason=>{
+                        sendRequestFailed(client,{
+                            type:"request_falied",
+                            requestType:type,
+                            serverName,
+                            requestUID,
+                            attachments:reason
+                        })
                     })
 
                     break;

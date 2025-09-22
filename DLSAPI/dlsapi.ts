@@ -1,39 +1,10 @@
-import { SimpleHTTPReq } from "./http";
-import {FMPLogger as Logger} from "./Logger.js"
+import { SimpleHTTPReq } from "../http";
+import {FMPLogger as Logger} from "../Logger.js"
+import { DLSLog, ProcessStatus } from "./APIStruct";
+import { DLSAPIError } from "./ServerHelper";
 
-type DLSAPIErrorReason=
-    "PATHINVALID"
-    |"NETWORKTIMEDOUT"
-    |"UNKNOWN"
-    |"INCORRECTTOKEN"
-    |"UNEXPECTEDSTATUS"
-    |"OUTDATEDAPIVERSION"
-    |"BUG"
-export class DLSAPIError extends Error{
-    code:DLSAPIErrorReason
-    HTTPStatusCode:number|undefined
-    constructor(msg:string,code:DLSAPIErrorReason,HTTPStatusCode?:number){
-        super(msg)
-        this.code=code;
-        this.HTTPStatusCode=HTTPStatusCode
-    }
-}
 
-export enum ProcessStatus{
-    STOPPED,
-    RUNNING,
-    SUSPEND,
-    CRASHED,
-    BACKINGUP
-}
 
-export interface DLSLog{
-    log_id:number,
-    time?:number,
-    text:string,
-    color_text:string,
-    clientRemark?:string
-}
 
 export class DLSAPI{
     private root:string

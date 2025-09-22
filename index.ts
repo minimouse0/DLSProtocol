@@ -6,11 +6,13 @@
 //然后在termux内做简易客户端进行测试
 //后面这个客户端成熟了，就直接放到远程服务器上就行了
 //首先，实现dls获取远程服务器数据并打印到控制台即可
-import { DLSAPI, ProcessStatus } from "./dlsapi.js";
+import { DLSAPI} from "./DLSAPI/dlsapi.js";
 import {FMPLogger as Logger} from "./Logger.js"
 import * as ws from "ws";
 import { config } from "./config.js";
 import { authorizedClients, checkClientAuthed, wsServer } from "./WSServer.js";
+import { sendConsoleUpdate, sendProcessStatusUpdatePack } from "./DLSAPI/ServerHelper.js";
+import { ProcessStatus } from "./DLSAPI/APIStruct.js";
 class DLSActiveManager{
 
     maxIdleTime=10000
@@ -62,11 +64,11 @@ Object.keys(config.get("servers")).forEach(serverName=>{
             authorizedClients.get(serverName)?.forEach(client => {
                 //需要鉴权，但是不发token错误
                 if(checkClientAuthed(serverName,client)&&client.readyState===ws.WebSocket.OPEN){
-                    client.send(JSON.stringify({
+                    sendConsoleUpdate(client,{
                         type:"console_update",
                         serverName,
                         data:newInfo.logsAppended
-                    }))
+                    })
                 }
             });            
         }
@@ -78,11 +80,11 @@ Object.keys(config.get("servers")).forEach(serverName=>{
             //公开
             wsServer.clients.forEach(client => {
                 if(client.readyState===ws.WebSocket.OPEN){
-                    client.send(JSON.stringify({
+                    sendProcessStatusUpdatePack(client,{
                         type:"process_status_update",
                         serverName,
                         data:status
-                    }))
+                    })
                 }
             });
             serverSessions.get(serverName).lastStatus=status.status
