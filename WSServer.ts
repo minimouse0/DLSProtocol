@@ -6,7 +6,7 @@ import * as ws from "ws";
 import { getThisMachineHardwareStatus } from "./DLSPerformanceDetector/DLSPerformanceDetector.js";
 import { SimpleHTTPReq } from "./http";
 import { HardwareStatusResult, hearbeat } from "./DLSAPI/APIStruct";
-import { sendAuthedBack, sendClientError, sendFetchAllServerLogsResultPack, sendFetchHardwareStatusResultPack, sendFetchProcessStatusResultPack, sendHeartbeat, sendRequestFailed } from "./DLSAPI/ServerHelper";
+import { DLSAPIError, sendAuthedBack, sendClientError, sendFetchAllServerLogsResultPack, sendFetchHardwareStatusResultPack, sendFetchProcessStatusResultPack, sendHeartbeat, sendRequestFailed } from "./DLSAPI/ServerHelper";
 //先做ws,ws好做
 export const wsServer=new ws.Server({port});
 export const authorizedClients = new Map<string,Set<ws>>();
@@ -110,7 +110,35 @@ wsServer.on("connection",client=>{
                             }
                             case undefined:
                             case "native":{
-                                serverSessions.get(serverName).session.getHardwareStatus().then(result=>resolve(result))
+                                serverSessions.get(serverName).session.getHardwareStatus()
+                                    .then(result=>resolve(result))
+                                    .catch(reason=>{
+                                        if(reason instanceof DLSAPIError){
+                                            if(reason.code==="NETWORKTIMEDOUT")sendClientError(client,{
+                                                type:"error",
+                                                msg:"请求目标服务器的硬件状态超时。",
+                                                serverName,
+                                                error:"DLSAPIError"
+                                            })
+                                            else sendClientError(client,{
+                                                type:"error",
+                                                msg:"请求目标服务器的硬件状态时DLSProtocol报错"+reason,
+                                                serverName,
+                                                error:"DLSAPIError"
+                                            })
+                                        }
+                                        else{
+                                            sendClientError(client,{
+                                                type:"error",
+                                                msg:"请求硬件状态时发生无法处理的错误："+reason,
+                                                serverName,
+                                                error:"internal_server_error",
+                                                attachments:{
+                                                    error:JSON.stringify(reason)
+                                                }
+                                            })
+                                        }
+                                    })
                                 break;
                             }
                             case "detector":{
@@ -147,7 +175,17 @@ wsServer.on("connection",client=>{
 
                     break;
                 default:
-                    throw new Error("不支持的行为："+type);
+                    //错误不再从这里抛出，防止被客户端搞死
+                    //直接返回给客户端，让客户端自行处理
+                    sendClientError(client,{
+                        type:"error",
+                        error:"type_not_supported",
+                        serverName,
+                        msg:"不支持的行为："+type,
+                        attachments:{
+                            type
+                        }
+                    });
             }
         }
         catch(e){
@@ -156,7 +194,7 @@ wsServer.on("connection",client=>{
         }
     })
     client.on('close',ws=>{
-        
+        //客户端断开连接
     })
 })
 

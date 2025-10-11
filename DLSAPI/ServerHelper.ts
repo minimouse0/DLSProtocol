@@ -25,8 +25,11 @@ export class DLSAPIError extends Error{
     HTTPStatusCode:number|undefined
     constructor(msg:string,code:DLSAPIErrorReason,HTTPStatusCode?:number){
         super(msg)
+        this.name="DLSAPIError"
         this.code=code;
         this.HTTPStatusCode=HTTPStatusCode
+        // ✅ 修复原型链，确保 instanceof 判断有效
+        Object.setPrototypeOf(this, new.target.prototype);
     }
 }
 export function sendConsoleUpdate(client:ws,data:ConsoleUpdatePack){

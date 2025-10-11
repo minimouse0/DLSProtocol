@@ -49,7 +49,19 @@ export class DLSAPI{
         if(this.running)return;
         //首先需要发送一次请求（直接刷新控制台）来确保连接成功，然后把这个日志解析出来，解析出来这个日志之后存进数据里面
         //因为start可能在中途停止后重新启动，所以旧日志不一定为空，需要调用正常的合并方法
-        await this.refreshConsole()
+        let logsInitialized=false;
+        //注意这个刷新控制台的有可能抛出错误
+        //所以这里如果有抛出错误的话，就一直请求，直到他刷新成功为止
+        while(!logsInitialized){
+            try{
+                await this.refreshConsole()
+                logsInitialized=true;
+            }
+            catch(e){
+                Logger.error("初始化控制台内容时，向DLS请求控制台内容出错，将在5s后重试，原因："+e)
+            }
+        }
+
         //随后开始正式地刷新
         this.refreshLoop.start()
         this.running=true;
@@ -58,7 +70,7 @@ export class DLSAPI{
         this.refreshLoop.stop()
         this.running=false;
     }
-    public async refresh(){
+    public async refresh(){try{
         //分别刷新控制台日志、服务器硬件状态和服务器开启状态
         const {logsAppended}=await this.refreshConsole();
         //如果发现有新日志，那么跳过其他刷新，这样会在等待之后马上进入下一次刷新，直到没有新日志
@@ -69,15 +81,36 @@ export class DLSAPI{
         {
             status:processStatus
         }))
-    }
-    public async refreshConsole(){
+    }catch(e){
+        Logger.error("无法刷新DLS的状态，跳过本次刷新。原因："+e)
+    }}
+    public async refreshConsole():Promise<{
+        logsAppended: DLSLog[];
+    }>{
         let logsAppended:DLSLog[]=[]
         //获取日志并合并到现有日志里
         //从现有日志的末尾开始获取（末尾必然是最新的）
         //如果把我所拥有的日志的最后一条发给dls，那么dls将从那条日志的下一条开始发给我
         //当心this.logs为空！！！
         const 旧日志的最后一项的log_id=this._logs.length==0?0:this._logs[this._logs.length-1].log_id
-        const {旧日志最后一项的新索引}=this.concatLogs(await this.terminal_log(旧日志的最后一项的log_id));
+        let 刚获取的新日志:DLSLog[]
+        // try{
+            刚获取的新日志=await this.terminal_log(旧日志的最后一项的log_id)
+        // }
+        // //这里是为了捕获日志未能获取的情况
+        // catch(e:any){
+        //     if(!(e instanceof DLSAPIError))throw new DLSAPIError("terminal_log应抛出DLSAPIError类型错误，但抛出了"+e.constructor.name,"BUG")
+        //     if(e.code==="NETWORKTIMEDOUT"){
+        //         Logger.error(e.message+"  将跳过本次刷新。")
+        //         return {
+        //             logsAppended:[]
+        //         };
+        //     }
+        //     else{
+        //         throw new Error("出现了未处理的错误。错误代码："+e.code+"，解释："+e.message)
+        //     }
+        // }
+        const {旧日志最后一项的新索引}=this.concatLogs(刚获取的新日志);
         //拼接完了之后，检查是否在后方添加了新日志
         //现在已经有了新索引的位置，那么直接对比新索引是否仍然在末尾
         //如果是在末尾的情况，那么证明后方没有新产生的日志
@@ -93,7 +126,7 @@ export class DLSAPI{
         this.postConsoleRefresh.forEach(fn=>fn(result))
         return result
     }
-    public async terminal_log(log_id:number):Promise<DLSLog[]>{
+    public async terminal_log(log_id:number):Promise<DLSLog[]>{//throws DLSAPIError
         const consoleFromTopRaw=await (async()=>{
             try{
                 return await SimpleHTTPReq.GET(this.root+"terminal_log?token="+this.token+"&log_id="+log_id);
@@ -240,10 +273,26 @@ export class DLSAPI{
     }
     public async getHardwareStatus(){
         //return await getThisMachineHardwareStatus()
-        return JSON.parse((await SimpleHTTPReq.GET(this.root+"server_status")).responseData)
+        let rawResult:string
+        try{
+            rawResult=(await SimpleHTTPReq.GET(this.root+"server_status")).responseData
+        }
+        catch(e){
+            if(e.code==="ETIMEDOUT")throw new DLSAPIError("获取服务器硬件状态超时。","NETWORKTIMEDOUT",502)
+            else throw e
+        }
+        return JSON.parse(rawResult)
     }
-    private async refreshProcessStatus(){
-        if(JSON.parse((await SimpleHTTPReq.GET(this.root+"process_status")).responseData).online){
+    private async refreshProcessStatus():Promise<ProcessStatus>{
+        let rawResult:string
+        try{
+            rawResult=(await SimpleHTTPReq.GET(this.root+"process_status")).responseData
+        }
+        catch(e){
+            if(e.code==="ETIMEDOUT")throw new DLSAPIError("获取服务器进程状态超时。","NETWORKTIMEDOUT",502)
+            else throw e
+        }
+        if(JSON.parse(rawResult).online){
             return ProcessStatus.RUNNING
         }
         else{
